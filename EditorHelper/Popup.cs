@@ -6,6 +6,7 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Threading;
+using System.ComponentModel;
 
 namespace EditorHelper
 {
@@ -27,7 +28,6 @@ namespace EditorHelper
 
         protected ContextMenuStrip contextMenu = null;
         protected ToolStripMenuItem currentSubMenu = null;
-        List<String> menuTexts = new List<string>();
         int index = -1;
         bool selected = false;
 
@@ -53,7 +53,6 @@ namespace EditorHelper
             this.currentSubMenu.DropDownItems.AddRange(
                 new ToolStripItem[] { menu }
             );
-            this.menuTexts.Add(text);
         }
 
         public void AddMenu(String text, int value) {
@@ -64,8 +63,6 @@ namespace EditorHelper
                 this.index = value;
                 this.selected = true;
             };
-
-            this.menuTexts.Add(text);
         }
 
         public int TrackMenu() {
@@ -80,6 +77,14 @@ namespace EditorHelper
             this.GetMenu().Focus();
             Application.DoEvents();
 
+            //this.WaitClose();
+            this.WaitCloseByGetMessage();
+
+            this.contextMenu.Close();
+            return this.index;
+        }
+
+        protected void WaitClose() {
             ContextMenuStrip menu = this.GetMenu();
             while (true) {
                 Application.DoEvents();
@@ -87,9 +92,18 @@ namespace EditorHelper
                     break;
                 }
             }
+        }
 
-            this.contextMenu.Close();
-            return this.index;
+        protected void WaitCloseByGetMessage() {
+            ContextMenuStrip menu = this.GetMenu();
+            MSG msg;
+            while (GetMessage(out msg, 0, 0, 0).ToInt64() > 0) {
+                DispatchMessage(out msg);
+                //Application.DoEvents();
+                if (this.selected || !menu.Visible) {
+                    break;
+                }
+            }
         }
 
         public void DeleteMenu() {
@@ -99,5 +113,56 @@ namespace EditorHelper
                 this.contextMenu = null;
             }
         }
+        #region P/Invoke
+
+        private const int PM_NOREMOVE = 0;
+        private const int PM_REMOVE = 1;
+
+        private const int WM_PAINT = 0xF;
+        private const int WM_LBUTTONUP = 0x202;
+        private const int WM_MOUSELEAVE = 0x2A3;
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool PeekMessage(
+            out MSG lpMsg,
+            int hWnd,
+            int wMsgFilterMin,
+            int wMsgFilterMax,
+            int wRemoveMsg
+        );
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr DispatchMessage(
+             out MSG lpMsg
+        );
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetMessage(
+            out MSG lpMsg,
+            int hWnd,
+            int wMsgFilterMin,
+            int wMsgFilterMax
+        );
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MSG
+        {
+            public IntPtr hWnd;
+            public int msg;
+            public IntPtr wParam;
+            public IntPtr lParam;
+            public int time;
+            public POINTAPI pt;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINTAPI
+        {
+            public int x;
+            public int y;
+        }
+
+        #endregion
     }
 }
